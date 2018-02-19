@@ -9,18 +9,28 @@ case class Point(x: Int, y: Int)
 
 object Main {
 
-  var angle = 0.0
-  var x = 0
-  var direction = 1
+  var dynamics = Dynamics(-9.81, 0.8, 1.0, 2.0, 0.1f, 0.5f)
+  var state = State(0.0, 0.0, -Math.PI / 180.0, 0.0)
+  var priorMillis = System.currentTimeMillis()
 
   var width = 0.0
   var height = 0.0
   var scaleFactor = 1.0
+  var pixelsPerMeter = 0.0
 
-  def angler = {
-    angle = angle + Math.PI / 45
-    x = x + 3 * direction
-    if (x < -300 || Math.abs(x) > 300) direction = direction * -1
+  def rungeKutta(h: Double)(d: Dynamics, s: State, u: Double): State = {
+    val k1 = d.solve(s, u)
+    val k2 = d.solve(s + (k1 * (0.5 * h)), u)
+    val k3 = d.solve(s + (k2 * (0.5 * h)), u)
+    val k4 = d.solve(s + (k3 * h), u)
+
+    s + ((k1 + (k2 * 2.0) + (k3 * 2.0) + k4) * (h / 6.0))
+  }
+
+  def updateState(): Unit = {
+    val elapsedSeconds = (System.currentTimeMillis() - priorMillis) / 1000.0
+    this.state = rungeKutta(elapsedSeconds)(dynamics, state, 0.0)
+    priorMillis = System.currentTimeMillis()
   }
 
   def scale(e: Event) = {
@@ -41,14 +51,16 @@ object Main {
     context.fillStyle = "black"
     context.font = "14pt sans-serif"
 
-    context.fillText(s" width: $width", 20, 60)
-    context.fillText(s"height: $height", 20, 80)
-    context.fillText(s"scaleFactor: $scaleFactor", 20, 100)
+    context.fillText(s"     x: ${state.x * pixelsPerMeter}", 20, 40)
+    context.fillText(s"     v: ${state.v * pixelsPerMeter}", 20, 60)
+    context.fillText(s" theta: ${state.theta}", 20, 80)
+    context.fillText(s" omega: ${state.omega}", 20, 100)
 
     context.translate(center.x, center.y)
     context.scale(scaleFactor, scaleFactor)
 
-    drawAssembly(rail, mount, wheel, pole)(x, angle)
+    updateState()
+    drawAssembly(rail, mount, wheel, pole)(state.x, state.theta)
 
     dom.window.requestAnimationFrame(draw(rail, mount, wheel, pole))
   }
@@ -56,13 +68,16 @@ object Main {
   def drawAssembly(rail: HTMLImageElement, mount: HTMLImageElement, wheel: HTMLImageElement, pole: HTMLImageElement)
                   (x: Double, theta: Double)
                   (implicit context: CanvasRenderingContext2D) = {
+
+    val xInPixels = pixelsPerMeter * x
+
     context.drawImage(rail, -rail.width / 2, -rail.height)
     context.save()
-    context.translate(x, 0.0)
+    context.translate(xInPixels, 0.0)
     context.drawImage(mount, -mount.width / 2, -mount.height - rail.height / 2)
     context.save()
     context.translate(0, -wheel.width / 2)
-    context.rotate(x / wheel.width)
+    context.rotate(xInPixels / wheel.width)
     context.drawImage(wheel, -wheel.width / 2, -wheel.height / 2)
     context.restore()
     context.translate(0, -100 - rail.height / 2)
@@ -84,9 +99,11 @@ object Main {
     val wheel: HTMLImageElement = loadImage("wheel.svg")
     val pole: HTMLImageElement = loadImage("pole.svg")
 
-    dom.window.setInterval(() => angler, 10)
+    pixelsPerMeter = pole.height / dynamics.lp
+
     dom.window.onload = (e: Event) => scale(e)
     dom.window.onresize = (e: Event) => scale(e)
     dom.window.requestAnimationFrame(draw(rail, mount, wheel, pole))
+    priorMillis = System.currentTimeMillis()
   }
 }
