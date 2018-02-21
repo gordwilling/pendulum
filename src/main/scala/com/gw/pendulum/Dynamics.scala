@@ -44,7 +44,7 @@ case class Dynamics(g: Double, lp: Double, mp: Double, mc: Double, fp: Double, f
     // alpha = ------------------------------------------------------------------------------------------------
     //                                          l[M + msin(theta)]
     //
-    val alpha = (mp * lp * sin(s.theta) * cos(s.theta) * (s.omega * s.omega)
+    val alpha = (-mp * lp * sin(s.theta) * cos(s.theta) * (s.omega * s.omega)
       - u * cos(s.theta)
       + fc * s.v * cos(s.theta)
       - (1 + mc / mp) * (fp / lp) * s.omega
